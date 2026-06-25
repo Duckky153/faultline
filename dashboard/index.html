@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Faultline — break a service on purpose, watch the trace find it</title>
+<meta name="description" content="Faultline is a small orders service instrumented with OpenTelemetry. Flip one switch and its database step fails; in Dynatrace the exact failing step surfaces on its own." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f4f1ea; --paper-2:#eceae1;
+    --ink:#16140f; --ink-2:#3d3a32; --ink-3:#6b6658;
+    --rule:#cbc6b8; --rule-2:#d9d4c6;
+    --accent:#b23a16; --accent-ink:#8c2c10;
+    --ok:#2f6f4f;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:"Newsreader", Georgia, "Times New Roman", serif;
+    font-size:19px;line-height:1.5;font-weight:400;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:0 40px;}
+  @media (max-width:760px){ .wrap{padding:0 22px;} body{font-size:18px;} }
+  .mono{font-family:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;}
+  .micro{font-family:"IBM Plex Mono", ui-monospace, monospace;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:500;}
+  .accent{color:var(--accent);}
+  a{color:inherit;}
+
+  header.top{border-bottom:1px solid var(--ink);}
+  .top-inner{display:flex;align-items:baseline;justify-content:space-between;padding:18px 0 16px;gap:24px;}
+  .wordmark{font-family:"Fraunces", serif;font-weight:600;font-size:21px;letter-spacing:-.01em;display:flex;align-items:baseline;gap:11px;}
+  .wordmark .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;transform:translateY(-1px);}
+  .top-meta{display:flex;gap:34px;align-items:baseline;}
+  @media (max-width:680px){ .top-meta .hide-sm{display:none;} .top-inner{flex-wrap:wrap;} }
+
+  .hero{padding:78px 0 0;border-bottom:1px solid var(--ink);}
+  .hero-grid{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:60px;align-items:end;}
+  @media (max-width:880px){ .hero-grid{grid-template-columns:1fr;gap:40px;} }
+  .hero-kicker{margin:0 0 26px;}
+  h1.headline{font-family:"Fraunces", serif;font-weight:400;font-size:clamp(40px, 7vw, 86px);line-height:.99;letter-spacing:-.022em;margin:0 0 28px;color:var(--ink);}
+  h1.headline em{font-style:italic;color:var(--accent);font-weight:400;}
+  .dek{font-family:"Newsreader", serif;font-size:clamp(19px,2.05vw,23px);line-height:1.42;color:var(--ink-2);max-width:50ch;margin:0;}
+  .dek b{font-weight:500;color:var(--ink);}
+
+  /* hero mini-trace card */
+  .htrace{border:1px solid var(--ink);background:var(--paper);}
+  .htrace .ht-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:14px 18px;border-bottom:1px solid var(--ink);font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink);}
+  .htrace .ht-head .f{color:var(--accent);font-size:11px;letter-spacing:.06em;text-transform:uppercase;}
+  .htrace .ht-row{display:flex;align-items:baseline;gap:12px;padding:13px 18px;border-bottom:1px solid var(--rule-2);font-family:"IBM Plex Mono",monospace;font-size:13.5px;}
+  .htrace .ht-row:last-child{border-bottom:0;}
+  .htrace .ht-row .span{flex:1 1 auto;color:var(--ink-2);}
+  .htrace .ht-row .tag{font-size:11px;letter-spacing:.04em;text-transform:uppercase;}
+  .htrace .ht-row.err{background:rgba(178,58,22,.06);}
+  .htrace .ht-row.err .span{color:var(--ink);}
+  .htrace .ht-row.err .tag{color:var(--accent);font-weight:500;}
+  .htrace .ht-row.skip .span,.htrace .ht-row.skip .tag{color:var(--ink-3);}
+  .htrace .ht-row.ok .tag{color:var(--ok);}
+  .htrace .ht-foot{padding:13px 18px;border-top:1px solid var(--ink);font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--accent);display:flex;justify-content:space-between;}
+
+  .hero-strap{margin-top:66px;border-top:1px solid var(--rule);display:grid;grid-template-columns:repeat(4,1fr);}
+  @media (max-width:760px){ .hero-strap{grid-template-columns:repeat(2,1fr);} }
+  .strap-cell{padding:20px 26px 26px 0;border-right:1px solid var(--rule);}
+  .strap-cell:last-child{border-right:0;}
+  @media (max-width:760px){ .strap-cell:nth-child(2n){border-right:0;} .strap-cell{padding-left:0;} }
+  .strap-cell .n{font-family:"IBM Plex Mono",monospace;font-size:30px;font-weight:500;letter-spacing:-.02em;color:var(--ink);display:block;line-height:1;}
+  .strap-cell .l{display:block;margin-top:12px;}
+
+  section{border-bottom:1px solid var(--ink);}
+  .sec-head{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,9fr);gap:48px;padding:64px 0 0;}
+  @media (max-width:880px){ .sec-head{grid-template-columns:1fr;gap:18px;padding-top:52px;} }
+  .sec-no{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.18em;color:var(--accent);font-weight:500;}
+  .sec-title{font-family:"Fraunces",serif;font-weight:400;font-size:clamp(28px,3.6vw,42px);line-height:1.04;letter-spacing:-.018em;margin:14px 0 0;}
+  .sec-lede{margin:20px 0 0;max-width:62ch;color:var(--ink-2);font-size:20px;}
+  .sec-lede b{color:var(--ink);font-weight:500;}
+  .sec-lede code{font-family:"IBM Plex Mono",monospace;font-size:.82em;color:var(--accent-ink);background:rgba(178,58,22,.07);padding:1px 5px;}
+  .sec-body{padding:48px 0 70px;}
+
+  .pipe{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;border:1px solid var(--ink);background:var(--paper);}
+  .pipe-step{flex:1 1 0;min-width:150px;padding:18px 18px 22px;border-right:1px solid var(--rule);}
+  .pipe-step:last-child{border-right:0;}
+  .pipe-step .si{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3);}
+  .pipe-step .sn{font-family:"IBM Plex Mono",monospace;font-size:18px;margin-top:10px;line-height:1.1;letter-spacing:-.01em;color:var(--ink);}
+  .pipe-step .sd{font-size:14.5px;line-height:1.35;color:var(--ink-2);margin-top:10px;font-family:"Newsreader",serif;}
+  .pipe-step.target{background:var(--paper-2);}
+  .pipe-step.target .sn{color:var(--accent);}
+  @media (max-width:880px){ .pipe-step{flex:1 1 46%;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);} }
+
+  .modes{margin-top:26px;display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--rule);}
+  @media (max-width:680px){ .modes{grid-template-columns:1fr;} }
+  .mode{padding:22px 24px;border-right:1px solid var(--rule);}
+  .mode:last-child{border-right:0;}
+  .mode h4{margin:0 0 8px;font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.04em;color:var(--ink);font-weight:600;}
+  .mode.bad h4{color:var(--accent);}
+  .mode.good h4{color:var(--ok);}
+  .mode p{margin:0;font-size:15.5px;color:var(--ink-2);line-height:1.45;}
+
+  .code{margin-top:44px;border:1px solid var(--ink);background:#1b1813;color:#e9e5da;padding:24px 26px 26px;overflow:auto;}
+  .code .lbl{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9b958a;margin-bottom:16px;display:block;}
+  .code pre{margin:0;font-family:"IBM Plex Mono",monospace;font-size:13.5px;line-height:1.7;white-space:pre;color:#e2ddd2;}
+  .code .cm{color:#8f8a7f;}
+  .code .kw{color:#e07a52;}
+  .code .str{color:#a8c08f;}
+  .code .em{color:#f0a06f;font-weight:500;}
+
+  .shots{display:grid;grid-template-columns:1fr;gap:38px;}
+  .shot{border:1px solid var(--ink);background:var(--paper-2);}
+  .shot img{display:block;width:100%;height:auto;border-bottom:1px solid var(--rule);}
+  .shot figcaption{padding:18px 24px 20px;}
+  .shot .ci{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:9px;}
+  .shot .ct{margin:0;font-size:16.5px;color:var(--ink-2);line-height:1.45;}
+  .shot .ct b{color:var(--ink);font-weight:500;}
+
+  .claims{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--ink);}
+  @media (max-width:760px){ .claims{grid-template-columns:1fr;} }
+  .claim{padding:26px 30px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);}
+  .claim:nth-child(2n){border-right:0;}
+  .claim h4{margin:0 0 11px;font-family:"IBM Plex Mono",monospace;font-size:14px;color:var(--ink);font-weight:600;}
+  .claim p{margin:0;font-size:16px;color:var(--ink-2);line-height:1.5;}
+  .claim.is-true h4{color:var(--ok);}
+  .claim.is-caveat h4{color:var(--accent-ink);}
+
+  footer{padding:60px 0 70px;}
+  .foot-grid{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:48px;align-items:end;}
+  @media (max-width:760px){ .foot-grid{grid-template-columns:1fr;gap:30px;} }
+  .foot-quote{font-family:"Fraunces",serif;font-weight:400;font-size:clamp(24px,3.4vw,38px);line-height:1.12;letter-spacing:-.018em;margin:0;color:var(--ink);max-width:20ch;}
+  .foot-quote em{font-style:italic;color:var(--accent);}
+  .foot-link{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:15px;border-bottom:1px solid var(--ink);padding-bottom:3px;text-decoration:none;color:var(--ink);}
+  .foot-link:hover{color:var(--accent);border-color:var(--accent);}
+  .foot-meta{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-3);line-height:1.7;}
+
+  ::selection{background:rgba(178,58,22,.18);}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="top-inner">
+      <div class="wordmark"><span class="dot"></span>Faultline</div>
+      <nav class="top-meta micro">
+        <span class="hide-sm">OpenTelemetry → Dynatrace</span>
+        <span class="hide-sm">service&nbsp;:&nbsp;orders-demo</span>
+        <a href="https://github.com/Duckky153/faultline" style="text-decoration:none;color:var(--accent);">github / Duckky153 / faultline</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <p class="hero-kicker micro">A service built to break — and be found</p>
+        <h1 class="headline">
+          Break one step.<br>
+          The trace points<br>
+          <em>right at it.</em>
+        </h1>
+        <p class="dek">
+          Faultline is a small orders service wired with OpenTelemetry. Flip one switch and
+          its database step starts failing. In Dynatrace, the exact failing step surfaces on
+          its own — <b>nobody has to say where to look.</b>
+        </p>
+      </div>
+
+      <div class="htrace" aria-label="one failing request">
+        <div class="ht-head"><span>GET&nbsp;/orders/3</span><span class="f">fault: error</span></div>
+        <div class="ht-row ok"><span class="span">orders.get</span><span class="tag">request</span></div>
+        <div class="ht-row err"><span class="span">db.query</span><span class="tag">error</span></div>
+        <div class="ht-row skip"><span class="span">downstream.shipping</span><span class="tag">never reached</span></div>
+        <div class="ht-foot"><span>HTTP 500</span><span>caught in 1 trace</span></div>
+      </div>
+    </div>
+
+    <div class="hero-strap">
+      <div class="strap-cell"><span class="n">3</span><span class="l micro">spans per request</span></div>
+      <div class="strap-cell"><span class="n">3</span><span class="l micro">fault modes · none / slow / error</span></div>
+      <div class="strap-cell"><span class="n">18</span><span class="l micro">tests · green</span></div>
+      <div class="strap-cell"><span class="n">0</span><span class="l micro">code changes to ship to Dynatrace</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ THE PROBLEM ============ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div><span class="sec-no">§ 01</span><h2 class="sec-title">What you can't<br>see, you can't fix</h2></div>
+      <div>
+        <p class="sec-lede">
+          In production a service is a black box. A request comes in, something inside is slow
+          or failing, and from the outside all you get is "checkout is down." Observability is
+          the practice of wiring each internal step to report what it did, so that black box
+          becomes a trace you can read. Faultline is the smallest honest version of that loop:
+          a real service, real OpenTelemetry, a real backend, and a switch to break it on
+          demand so you can watch the catch happen.
+        </p>
+      </div>
+    </div>
+    <div class="sec-body"></div>
+  </div>
+</section>
+
+<!-- ============ THE SERVICE + BREAK BUTTON ============ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div><span class="sec-no">§ 02</span><h2 class="sec-title">The service, and<br>the break button</h2></div>
+      <div>
+        <p class="sec-lede">
+          Every request becomes a trace: one step for the request, with child steps for the
+          database lookup and a downstream call. A <b>span</b> is one timed step; a <b>trace</b>
+          is the whole request, made of spans.
+        </p>
+      </div>
+    </div>
+
+    <div class="sec-body">
+      <div class="pipe" role="list" aria-label="request anatomy">
+        <div class="pipe-step" role="listitem">
+          <div class="si">span 01 · server</div><div class="sn">orders.get</div>
+          <div class="sd">The request itself, auto-instrumented by OpenTelemetry.</div>
+        </div>
+        <div class="pipe-step target" role="listitem">
+          <div class="si">span 02 · the break point</div><div class="sn">db.query</div>
+          <div class="sd">The database lookup. This is the step the break button targets.</div>
+        </div>
+        <div class="pipe-step" role="listitem">
+          <div class="si">span 03 · downstream</div><div class="sn">downstream.shipping</div>
+          <div class="sd">A follow-on call, e.g. a shipping service. Skipped if the lookup fails.</div>
+        </div>
+      </div>
+
+      <div class="modes">
+        <div class="mode good">
+          <h4>none</h4>
+          <p>Healthy. The lookup returns the order and the request succeeds.</p>
+        </div>
+        <div class="mode">
+          <h4>slow</h4>
+          <p>The database step stalls for about two seconds — a latency problem, not an outage.</p>
+        </div>
+        <div class="mode bad">
+          <h4>error</h4>
+          <p>The database step throws, the request returns <code style="font-family:'IBM Plex Mono',monospace;font-size:.85em;color:var(--accent-ink)">HTTP 500</code>, and the trace records exactly where.</p>
+        </div>
+      </div>
+
+      <div class="code" aria-label="flip the break button">
+        <span class="lbl">flip the break button at runtime</span>
+<pre><span class="cm"># make the database step fail</span>
+curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"error"}'</span>
+curl localhost:8799/orders/1            <span class="cm"># -> HTTP 500, recorded in the trace</span>
+
+<span class="cm"># put it back</span>
+curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ OTEL ============ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div><span class="sec-no">§ 03</span><h2 class="sec-title">Instrumented once,<br>shipped anywhere</h2></div>
+      <div>
+        <p class="sec-lede">
+          The same spans run locally or ship to a real backend with no code change. Faultline
+          reads the standard OpenTelemetry environment variables: point them at a Dynatrace
+          endpoint and the traces flow there; set nothing and it runs locally and sends
+          nothing. That vendor-neutral, configuration-driven export is the whole point of
+          OpenTelemetry.
+        </p>
+      </div>
+    </div>
+
+    <div class="sec-body">
+      <div class="code" aria-label="excerpt from app/telemetry.py">
+        <span class="lbl">app/telemetry.py — export only when an endpoint is set (abridged)</span>
+<pre><span class="kw">def</span> configure() -> TracerProvider:
+    resource = Resource.create({<span class="str">"service.name"</span>: <span class="str">"orders-demo"</span>})
+    provider = TracerProvider(resource=resource)
+
+    <span class="cm"># Ship spans to an OTLP backend (e.g. Dynatrace) only when an endpoint is set.</span>
+    <span class="kw">if</span> os.getenv(<span class="str">"OTEL_EXPORTER_OTLP_ENDPOINT"</span>):
+        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+
+    trace.set_tracer_provider(provider)
+    <span class="kw">return</span> provider</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SEEN IN DYNATRACE ============ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div><span class="sec-no">§ 04</span><h2 class="sec-title">Seen in<br>Dynatrace</h2></div>
+      <div>
+        <p class="sec-lede">
+          Here it is running in a real Dynatrace environment. The service appears on its own,
+          with healthy and failing requests. Open a failing one and the database step is
+          flagged as the error — without anyone pointing Dynatrace at it.
+        </p>
+      </div>
+    </div>
+
+    <div class="sec-body">
+      <div class="shots">
+        <figure class="shot">
+          <img src="01-orders-demo-service.png" alt="The orders-demo service in Dynatrace, showing a list of requests with successes and failures." loading="lazy" />
+          <figcaption>
+            <span class="ci">01 · the service, live</span>
+            <p class="ct">The <b>orders-demo</b> service in Dynatrace. Each row is a real request; the red ones are the failures created by flipping the break button to <b>error</b>.</p>
+          </figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="02-failing-request-trace.png" alt="A single failing request trace in Dynatrace, with the db.query step marked as the error." loading="lazy" />
+          <figcaption>
+            <span class="ci">02 · one failing request, opened up</span>
+            <p class="ct">The same request, expanded. The <b>db.query</b> step carries the error and the request never reaches shipping. That's the exact failing step — found automatically, not guessed.</p>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HONESTY ============ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div><span class="sec-no">§ 05</span><h2 class="sec-title">What this is,<br>and isn't</h2></div>
+      <div>
+        <p class="sec-lede">
+          Faultline is a deliberately tiny demo, not a production system. Its job is to make
+          one loop concrete — the loop a Solutions Engineer runs with a customer.
+        </p>
+      </div>
+    </div>
+
+    <div class="sec-body">
+      <div class="claims">
+        <div class="claim is-true">
+          <h4>it's the produce-and-observe loop</h4>
+          <p>Instrument a service, send some traffic, break a step, and find it in seconds instead of hours. That's the demo an SE walks a customer through.</p>
+        </div>
+        <div class="claim is-caveat">
+          <h4>it's three orders, in memory</h4>
+          <p>No real database, no real shipping service. The point isn't scale; it's showing how a failure becomes visible the moment a service is instrumented.</p>
+        </div>
+        <div class="claim is-true">
+          <h4>the backend is real</h4>
+          <p>The traces ship to an actual Dynatrace environment over OTLP — the screenshots above are from a live tenant, not a mock-up.</p>
+        </div>
+        <div class="claim is-caveat">
+          <h4>nothing secret is committed</h4>
+          <p>The Dynatrace side is a free trial; the access token lives only in a local <code style="font-family:'IBM Plex Mono',monospace;font-size:.85em">.env</code> and is never pushed to the repo.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <p class="foot-quote">
+          Make a service say what it did, and a failure stops being a <em>mystery.</em>
+        </p>
+      </div>
+      <div>
+        <p style="margin:0 0 22px;"><a class="foot-link" href="https://github.com/Duckky153/faultline">github.com/Duckky153/faultline&nbsp;→</a></p>
+        <p class="foot-meta">
+          orders.get → db.query → downstream.shipping<br>
+          fault modes: none · slow · error<br><br>
+          18 tests · OTLP export via standard env vars<br>
+          service name in Dynatrace: orders-demo
+        </p>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
