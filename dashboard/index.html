@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Faultline — break a service on purpose, watch the trace find it</title>
+<title>Faultline: break a service on purpose, watch the trace find it</title>
 <meta name="description" content="Faultline is a small orders service instrumented with OpenTelemetry. Flip one switch and its database step fails; in Dynatrace the exact failing step surfaces on its own." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -156,22 +156,24 @@
   <div class="wrap">
     <div class="hero-grid">
       <div>
-        <p class="hero-kicker micro">A service built to break — and be found</p>
+        <p class="hero-kicker micro">A small app built to break, and be found</p>
         <h1 class="headline">
           Break one step.<br>
           The trace points<br>
           <em>right at it.</em>
         </h1>
         <p class="dek">
-          Faultline is a small orders service wired with OpenTelemetry. Flip one switch and
-          its database step starts failing. In Dynatrace, the exact failing step surfaces on
-          its own — <b>nobody has to say where to look.</b>
+          Faultline is a small demo app I built. It uses OpenTelemetry (the standard way an
+          app reports what it's doing) to send its activity into Dynatrace, a monitoring
+          tool. Flip one switch and one step inside the app, a database call, starts failing.
+          In Dynatrace that exact broken step shows up on its own. <b>Nobody has to go
+          hunting for where it went wrong.</b>
         </p>
       </div>
 
       <div class="htrace" aria-label="one failing request">
         <div class="ht-head"><span>GET&nbsp;/orders/3</span><span class="f">fault: error</span></div>
-        <div class="ht-row ok"><span class="span">orders.get</span><span class="tag">request</span></div>
+        <div class="ht-row err"><span class="span">orders.get</span><span class="tag">request · 500</span></div>
         <div class="ht-row err"><span class="span">db.query</span><span class="tag">error</span></div>
         <div class="ht-row skip"><span class="span">downstream.shipping</span><span class="tag">never reached</span></div>
         <div class="ht-foot"><span>HTTP 500</span><span>caught in 1 trace</span></div>
@@ -179,10 +181,10 @@
     </div>
 
     <div class="hero-strap">
-      <div class="strap-cell"><span class="n">3</span><span class="l micro">spans per request</span></div>
-      <div class="strap-cell"><span class="n">3</span><span class="l micro">fault modes · none / slow / error</span></div>
-      <div class="strap-cell"><span class="n">18</span><span class="l micro">tests · green</span></div>
-      <div class="strap-cell"><span class="n">0</span><span class="l micro">code changes to ship to Dynatrace</span></div>
+      <div class="strap-cell"><span class="n">3</span><span class="l micro">steps in each request</span></div>
+      <div class="strap-cell"><span class="n">3</span><span class="l micro">ways to break it · none / slow / error</span></div>
+      <div class="strap-cell"><span class="n">18</span><span class="l micro">tests passing</span></div>
+      <div class="strap-cell"><span class="n">0</span><span class="l micro">code changes to send it to Dynatrace</span></div>
     </div>
   </div>
 </section>
@@ -194,12 +196,13 @@
       <div><span class="sec-no">§ 01</span><h2 class="sec-title">What you can't<br>see, you can't fix</h2></div>
       <div>
         <p class="sec-lede">
-          In production a service is a black box. A request comes in, something inside is slow
-          or failing, and from the outside all you get is "checkout is down." Observability is
-          the practice of wiring each internal step to report what it did, so that black box
-          becomes a trace you can read. Faultline is the smallest honest version of that loop:
-          a real service, real OpenTelemetry, a real backend, and a switch to break it on
-          demand so you can watch the catch happen.
+          When an app is running live, you usually can't see inside it. A request comes in,
+          something is slow or breaks, and all the user sees is "checkout is down," with no
+          clue why. Observability means making each step of the app report what it did, so
+          that black box turns into a timeline you can actually read. Faultline is the
+          smallest honest version of that: a real little app, real reporting, a real
+          monitoring backend, and a switch to break it whenever you want so you can watch the
+          problem get caught.
         </p>
       </div>
     </div>
@@ -211,12 +214,12 @@
 <section>
   <div class="wrap">
     <div class="sec-head">
-      <div><span class="sec-no">§ 02</span><h2 class="sec-title">The service, and<br>the break button</h2></div>
+      <div><span class="sec-no">§ 02</span><h2 class="sec-title">The app, and<br>the break button</h2></div>
       <div>
         <p class="sec-lede">
-          Every request becomes a trace: one step for the request, with child steps for the
-          database lookup and a downstream call. A <b>span</b> is one timed step; a <b>trace</b>
-          is the whole request, made of spans.
+          Every request becomes a <b>trace</b>: a timeline of what happened. Each step in it
+          is a <b>span</b>, one timed piece of work. Here a request has three: handling the
+          request, the database lookup inside it, and one follow-on call.
         </p>
       </div>
     </div>
@@ -225,15 +228,15 @@
       <div class="pipe" role="list" aria-label="request anatomy">
         <div class="pipe-step" role="listitem">
           <div class="si">span 01 · server</div><div class="sn">orders.get</div>
-          <div class="sd">The request itself, auto-instrumented by OpenTelemetry.</div>
+          <div class="sd">Handling the request itself. OpenTelemetry records this automatically.</div>
         </div>
         <div class="pipe-step target" role="listitem">
           <div class="si">span 02 · the break point</div><div class="sn">db.query</div>
-          <div class="sd">The database lookup. This is the step the break button targets.</div>
+          <div class="sd">The database lookup. This is the step the break button breaks.</div>
         </div>
         <div class="pipe-step" role="listitem">
           <div class="si">span 03 · downstream</div><div class="sn">downstream.shipping</div>
-          <div class="sd">A follow-on call, e.g. a shipping service. Skipped if the lookup fails.</div>
+          <div class="sd">A follow-on call, like a shipping service. Skipped if the lookup fails.</div>
         </div>
       </div>
 
@@ -244,11 +247,11 @@
         </div>
         <div class="mode">
           <h4>slow</h4>
-          <p>The database step stalls for about two seconds — a latency problem, not an outage.</p>
+          <p>The database step stalls for about two seconds. A slowness problem, not a full outage.</p>
         </div>
         <div class="mode bad">
           <h4>error</h4>
-          <p>The database step throws, the request returns <code style="font-family:'IBM Plex Mono',monospace;font-size:.85em;color:var(--accent-ink)">HTTP 500</code>, and the trace records exactly where.</p>
+          <p>The database step fails, the request comes back as an error (<code style="font-family:'IBM Plex Mono',monospace;font-size:.85em;color:var(--accent-ink)">HTTP 500</code>), and the trace records exactly where it broke.</p>
         </div>
       </div>
 
@@ -269,26 +272,26 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
 <section>
   <div class="wrap">
     <div class="sec-head">
-      <div><span class="sec-no">§ 03</span><h2 class="sec-title">Instrumented once,<br>shipped anywhere</h2></div>
+      <div><span class="sec-no">§ 03</span><h2 class="sec-title">Set up once,<br>send it anywhere</h2></div>
       <div>
         <p class="sec-lede">
-          The same spans run locally or ship to a real backend with no code change. Faultline
-          reads the standard OpenTelemetry environment variables: point them at a Dynatrace
-          endpoint and the traces flow there; set nothing and it runs locally and sends
-          nothing. That vendor-neutral, configuration-driven export is the whole point of
-          OpenTelemetry.
+          The same app runs on your laptop or sends its data to a real monitoring tool, with
+          no code change. It just reads a few standard settings: point them at Dynatrace and
+          the data flows there; leave them blank and it runs locally and sends nothing. Being
+          able to switch the destination with settings instead of code is the whole point of
+          OpenTelemetry, and it means a customer is never locked into one vendor.
         </p>
       </div>
     </div>
 
     <div class="sec-body">
       <div class="code" aria-label="excerpt from app/telemetry.py">
-        <span class="lbl">app/telemetry.py — export only when an endpoint is set (abridged)</span>
+        <span class="lbl">app/telemetry.py · only send data when a destination is set (shortened)</span>
 <pre><span class="kw">def</span> configure() -> TracerProvider:
     resource = Resource.create({<span class="str">"service.name"</span>: <span class="str">"orders-demo"</span>})
     provider = TracerProvider(resource=resource)
 
-    <span class="cm"># Ship spans to an OTLP backend (e.g. Dynatrace) only when an endpoint is set.</span>
+    <span class="cm"># Only send the data to a monitoring tool (e.g. Dynatrace) when a destination is set.</span>
     <span class="kw">if</span> os.getenv(<span class="str">"OTEL_EXPORTER_OTLP_ENDPOINT"</span>):
         provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
 
@@ -306,9 +309,9 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
       <div><span class="sec-no">§ 04</span><h2 class="sec-title">Seen in<br>Dynatrace</h2></div>
       <div>
         <p class="sec-lede">
-          Here it is running in a real Dynatrace environment. The service appears on its own,
-          with healthy and failing requests. Open a failing one and the database step is
-          flagged as the error — without anyone pointing Dynatrace at it.
+          Here it is running in a real Dynatrace account. The app shows up on its own, with
+          both healthy and failing requests. Open a failing one and the database step is
+          marked as the cause, without anyone telling Dynatrace where to look.
         </p>
       </div>
     </div>
@@ -319,14 +322,14 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
           <img src="01-orders-demo-service.png" alt="The orders-demo service in Dynatrace, showing a list of requests with successes and failures." loading="lazy" />
           <figcaption>
             <span class="ci">01 · the service, live</span>
-            <p class="ct">The <b>orders-demo</b> service in Dynatrace. Each row is a real request; the red ones are the failures created by flipping the break button to <b>error</b>.</p>
+            <p class="ct">The <b>orders-demo</b> app in Dynatrace. Each row is a real request; the red ones are the failures created by flipping the break button to <b>error</b>.</p>
           </figcaption>
         </figure>
         <figure class="shot">
           <img src="02-failing-request-trace.png" alt="A single failing request trace in Dynatrace, with the db.query step marked as the error." loading="lazy" />
           <figcaption>
             <span class="ci">02 · one failing request, opened up</span>
-            <p class="ct">The same request, expanded. The <b>db.query</b> step carries the error and the request never reaches shipping. That's the exact failing step — found automatically, not guessed.</p>
+            <p class="ct">The same request, opened up. The <b>db.query</b> step (the database lookup) carries the error, and the request never reaches shipping. That's the exact failing step, found automatically, not guessed.</p>
           </figcaption>
         </figure>
       </div>
@@ -341,8 +344,9 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
       <div><span class="sec-no">§ 05</span><h2 class="sec-title">What this is,<br>and isn't</h2></div>
       <div>
         <p class="sec-lede">
-          Faultline is a deliberately tiny demo, not a production system. Its job is to make
-          one loop concrete — the loop a Solutions Engineer runs with a customer.
+          Faultline is a deliberately tiny demo, not a real production system. Its job is to
+          make one thing concrete: the exact loop a Solutions Engineer walks a customer
+          through.
         </p>
       </div>
     </div>
@@ -350,20 +354,20 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
     <div class="sec-body">
       <div class="claims">
         <div class="claim is-true">
-          <h4>it's the produce-and-observe loop</h4>
-          <p>Instrument a service, send some traffic, break a step, and find it in seconds instead of hours. That's the demo an SE walks a customer through.</p>
+          <h4>it's the make-it-then-watch-it loop</h4>
+          <p>Set up an app to report what it's doing, send it some traffic, break a step, and find it in seconds instead of hours. That's the demo an SE walks a customer through.</p>
         </div>
         <div class="claim is-caveat">
           <h4>it's three orders, in memory</h4>
-          <p>No real database, no real shipping service. The point isn't scale; it's showing how a failure becomes visible the moment a service is instrumented.</p>
+          <p>No real database, no real shipping service. The point isn't size; it's showing how a failure becomes visible the moment an app reports what it's doing.</p>
         </div>
         <div class="claim is-true">
-          <h4>the backend is real</h4>
-          <p>The traces ship to an actual Dynatrace environment over OTLP — the screenshots above are from a live tenant, not a mock-up.</p>
+          <h4>the monitoring is real</h4>
+          <p>The data goes to an actual Dynatrace account, and the screenshots above are from that live account, not a mock-up.</p>
         </div>
         <div class="claim is-caveat">
-          <h4>nothing secret is committed</h4>
-          <p>The Dynatrace side is a free trial; the access token lives only in a local <code style="font-family:'IBM Plex Mono',monospace;font-size:.85em">.env</code> and is never pushed to the repo.</p>
+          <h4>nothing secret is shared</h4>
+          <p>The Dynatrace side is a free trial, and the access key lives only in a local <code style="font-family:'IBM Plex Mono',monospace;font-size:.85em">.env</code> file that is never uploaded to the public code.</p>
         </div>
       </div>
     </div>
@@ -376,15 +380,15 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
     <div class="foot-grid">
       <div>
         <p class="foot-quote">
-          Make a service say what it did, and a failure stops being a <em>mystery.</em>
+          Make an app say what it did, and a failure stops being a <em>mystery.</em>
         </p>
       </div>
       <div>
         <p style="margin:0 0 22px;"><a class="foot-link" href="https://github.com/Duckky153/faultline">github.com/Duckky153/faultline&nbsp;→</a></p>
         <p class="foot-meta">
           orders.get → db.query → downstream.shipping<br>
-          fault modes: none · slow · error<br><br>
-          18 tests · OTLP export via standard env vars<br>
+          break modes: none · slow · error<br><br>
+          18 tests · sends data via standard OpenTelemetry settings<br>
           service name in Dynatrace: orders-demo
         </p>
       </div>
