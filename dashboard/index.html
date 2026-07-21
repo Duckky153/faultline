@@ -309,9 +309,10 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
       <div><span class="sec-no">§ 04</span><h2 class="sec-title">Seen in<br>Dynatrace</h2></div>
       <div>
         <p class="sec-lede">
-          These screenshots are from a live Dynatrace trial session. The app showed up on
-          its own, with both healthy and failing requests. Opening a failing one, the
-          database step is marked as the cause, without anyone telling Dynatrace where to look.
+          These screenshots are from a past Dynatrace trial session (that trial has since
+          expired). The app showed up on its own, with both healthy and failing requests.
+          Opening a failing one, the database step is marked as the cause, without anyone
+          telling Dynatrace where to look.
         </p>
       </div>
     </div>
@@ -363,11 +364,11 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
         </div>
         <div class="claim is-true">
           <h4>the monitoring is real</h4>
-          <p>The data streamed into an actual Dynatrace trial account, and the screenshots above are from that live session, not a mock-up.</p>
+          <p>The data streamed into an actual Dynatrace trial account, and the screenshots above are from that session — real, not a mock-up. That trial has since expired.</p>
         </div>
         <div class="claim is-caveat">
           <h4>nothing secret is shared</h4>
-          <p>The Dynatrace side is a free trial, and the access key lives only in a local <code style="font-family:'IBM Plex Mono',monospace;font-size:.85em">.env</code> file that is never uploaded to the public code.</p>
+          <p>The Dynatrace side was a free trial, and the access key lived only in a local <code style="font-family:'IBM Plex Mono',monospace;font-size:.85em">.env</code> file that is never uploaded to the public code.</p>
         </div>
       </div>
     </div>
