@@ -309,9 +309,9 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
       <div><span class="sec-no">§ 04</span><h2 class="sec-title">Seen in<br>Dynatrace</h2></div>
       <div>
         <p class="sec-lede">
-          Here it is running in a real Dynatrace account. The app shows up on its own, with
-          both healthy and failing requests. Open a failing one and the database step is
-          marked as the cause, without anyone telling Dynatrace where to look.
+          These screenshots are from a live Dynatrace trial session. The app showed up on
+          its own, with both healthy and failing requests. Opening a failing one, the
+          database step is marked as the cause, without anyone telling Dynatrace where to look.
         </p>
       </div>
     </div>
@@ -321,7 +321,7 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
         <figure class="shot">
           <img src="01-orders-demo-service.png" alt="The orders-demo service in Dynatrace, showing a list of requests with successes and failures." loading="lazy" />
           <figcaption>
-            <span class="ci">01 · the service, live</span>
+            <span class="ci">01 · the service, in Dynatrace</span>
             <p class="ct">The <b>orders-demo</b> app in Dynatrace. Each row is a real request; the red ones are the failures created by flipping the break button to <b>error</b>.</p>
           </figcaption>
         </figure>
@@ -363,7 +363,7 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
         </div>
         <div class="claim is-true">
           <h4>the monitoring is real</h4>
-          <p>The data goes to an actual Dynatrace account, and the screenshots above are from that live account, not a mock-up.</p>
+          <p>The data streamed into an actual Dynatrace trial account, and the screenshots above are from that live session, not a mock-up.</p>
         </div>
         <div class="claim is-caveat">
           <h4>nothing secret is shared</h4>
