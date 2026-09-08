@@ -117,3 +117,59 @@ Pre-commit `detect_changes` reviewed the eight staged task files and reported
 MEDIUM aggregate risk, with one affected process: `get_order → query_order →
 get_fault`. That process and its HTTP/error/slow/missing-order paths are covered
 by the final 24-pass suite. Staged whitespace validation also passed.
+
+## Clean-install follow-up
+
+The owner-authorized publication of `fa644aa` exposed a separate, preexisting
+packaging defect in [CI run 34264172636](https://github.com/Duckky153/faultline/actions/runs/34264172636):
+`pip install -e ".[dev]"` failed before tests because setuptools automatically
+discovered three top-level packages: `app`, `dashboard`, and `screenshots`.
+The same failure was reproduced in a newly created Python 3.12 environment
+before changing package configuration. The prior tests used an existing local
+environment and therefore had not established clean-install readiness.
+
+The approved follow-up changes only installation configuration and its docs:
+
+- `pyproject.toml` declares the setuptools build backend and explicitly packages
+  only `app`. No runtime code, dependency ranges, or dashboard content changed.
+  This follows the documented [explicit package configuration](https://setuptools.pypa.io/en/latest/userguide/package_discovery.html).
+- The README installs the project and its declared `dev` extra rather than
+  repeating a separate dependency list.
+- `uv.lock` now marks the project as editable and includes the already-declared
+  FastAPI instrumentation dependency and its five supporting packages. The
+  previous lockfile omitted them. All 40 existing package versions are unchanged;
+  no upgrade flag was used. The lock format revision moved from 2 to 3.
+
+Verification used independent environments under
+`/private/tmp/faultline-packaging-UvZCLT`, leaving the original `.venv` unchanged:
+
+- `editable`: the exact failed `pip install -e ".[dev]"` now succeeds with
+  isolated build dependencies; 24 tests pass on Python 3.12.10.
+- `wheels/orders_demo-0.1.0-py3-none-any.whl`: isolated wheel build succeeds.
+  SHA-256: `7e1ef3df93fd57eb15803f16f67ef53c08ebfcd8d24933c76174f98856eb54e2`.
+  Archive inspection confirms only `app/__init__.py`, `app/main.py`,
+  `app/store.py`, `app/telemetry.py`, and four distribution-metadata files.
+  No dashboard, screenshots, test code, traffic script, or secrets are packaged.
+- `wheel-env`: installing that exact wheel with its `dev` extra succeeds.
+  All 24 tests also pass from `wheel-suite`, outside the checkout, with only
+  the tests, root test configuration, and dashboard HTML copied there. No app
+  source is copied. An isolated Python invocation asserts that `app` imports
+  from this environment's `site-packages` before running the suite.
+- `locked-env`: `uv sync --locked --extra dev` succeeds; all 24 tests pass on
+  Python 3.13.3. `uv lock --check --offline` passes after cache population.
+- Both pip environments pass `pip check`. The fresh pip runs have two upstream
+  deprecation warnings; the locked run has three. No dependencies were upgraded
+  to remove warnings. The real curl and loopback OTLP tests run in all three
+  environments; no external tracing destination is used.
+
+The existing CI install-and-test sequence is the permanent editable-install
+regression gate and is unchanged. Wheel verification above is a local check,
+not a new hosted CI result. This follow-up is committed locally for parent
+review and publication; only a subsequent successful hosted run can establish
+that CI is green. The build-generated `build/` and `orders_demo.egg-info/`
+directories are retained in the task's temporary directory, not committed.
+
+Packaging impact and the staged GitNexus change review are LOW, with no affected
+execution flows. Staged whitespace validation passes. The four task files are
+the package configuration, lockfile, README, and this audit; preexisting dirt is
+unchanged and excluded from the commit.

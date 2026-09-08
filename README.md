@@ -38,9 +38,7 @@ server span as failed; it never reaches the simulated shipping step.
 ## Run it locally
 ```bash
 uv venv --python 3.12
-VIRTUAL_ENV="$PWD/.venv" uv pip install fastapi "uvicorn[standard]" \
-  opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-http \
-  opentelemetry-instrumentation-fastapi pytest httpx
+VIRTUAL_ENV="$PWD/.venv" uv pip install -e ".[dev]"
 .venv/bin/python -m pytest                       # run the 24 tests
 .venv/bin/python -m uvicorn app.main:app --port 8799   # start the server
 ```
