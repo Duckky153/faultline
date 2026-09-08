@@ -42,27 +42,25 @@ def list_orders() -> dict:
 
 @app.get("/orders/{order_id}")
 def get_order(order_id: int) -> dict:
-    with tracer.start_as_current_span("orders.get") as span:
-        span.set_attribute("order.id", order_id)
-        try:
+    try:
+        with tracer.start_as_current_span("orders.get") as span:
+            span.set_attribute("order.id", order_id)
             order = store.query_order(order_id)
-        except RuntimeError as exc:
-            span.record_exception(exc)
-            span.set_status(Status(StatusCode.ERROR, "order lookup failed"))
-            raise HTTPException(status_code=500, detail="order lookup failed") from exc
 
-        if not order:
-            # "Not found" is a normal client outcome, not a server failure, so
-            # mark the span OK explicitly and raise the 404 *after* the span has
-            # closed — otherwise the exception would unwind through the span and
-            # get recorded as an error, inflating the Dynatrace failure rate.
-            # (A real fault raises 500 above and is correctly marked ERROR.)
-            span.set_status(Status(StatusCode.OK))
-            order = None
-        else:
-            # A downstream call (e.g. a shipping service) shown as its own step.
-            with tracer.start_as_current_span("downstream.shipping"):
-                order["tracking"] = f"TRK{order_id:04d}"
+            if not order:
+                # Close the span before raising an ordinary client-side 404.
+                span.set_status(Status(StatusCode.OK))
+                order = None
+            else:
+                # Local simulation only: no shipping service is contacted.
+                with tracer.start_as_current_span("downstream.shipping"):
+                    order["tracking"] = f"TRK{order_id:04d}"
+    except RuntimeError as exc:
+        # The span has already recorded the original database exception once.
+        # Translate it outside the span so HTTPException neither adds a second
+        # event nor replaces the original error description. HTTP instrumentation
+        # still marks the enclosing SERVER span as failed when it sees the 500.
+        raise HTTPException(status_code=500, detail="order lookup failed") from exc
 
     if order is None:
         raise HTTPException(status_code=404, detail="order not found")
