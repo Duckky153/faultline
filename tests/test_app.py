@@ -168,36 +168,46 @@ def test_slow_mode_is_200_and_not_marked_error():
     assert spans["db.query"].status.status_code.name != "ERROR"
 
 
-# -------------------------------------------- the OTLP export decision
+def test_database_failure_records_original_error_once_per_manual_span():
+    store.set_fault("error")
+    response = client.get("/orders/1")
+    assert response.status_code == 500
+    assert response.json() == {"detail": "order lookup failed"}
 
-def test_configure_attaches_otlp_exporter_when_endpoint_is_set(monkeypatch):
-    """configure() should attach the OTLP/BatchSpanProcessor export path only
-    when an OTLP endpoint is set. The real configure() installs a *process-global*
-    TracerProvider exactly once, so we can't re-run it here without clobbering
-    that global and making the suite flaky. We instead exercise the same
-    decision against a throwaway provider — the env check + the export branch —
-    so it stays fast and fully isolated."""
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    spans = _spans_by_name()
+    for name in ("db.query", "orders.get"):
+        span = spans[name]
+        exceptions = [event for event in span.events if event.name == "exception"]
+        assert len(exceptions) == 1
+        assert exceptions[0].attributes["exception.type"] == "RuntimeError"
+        assert exceptions[0].attributes["exception.message"] == "database connection failed"
+        assert span.status.status_code.name == "ERROR"
+        assert "database connection failed" in span.status.description
 
-    from app import telemetry
+    server = spans["GET /orders/{order_id}"]
+    assert server.kind.name == "SERVER"
+    assert server.status.status_code.name == "ERROR"
+    assert server.attributes["http.status_code"] == 500
+    assert "downstream.shipping" not in spans
 
-    monkeypatch.setenv(
-        "OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.live.dynatrace.com/api/v2/otlp"
-    )
 
-    provider = TracerProvider(
-        resource=Resource.create({"service.name": telemetry.SERVICE_NAME})
-    )
-    if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-            OTLPSpanExporter,
-        )
+def test_manual_order_span_is_nested_beneath_automatic_http_server_span():
+    client.get("/orders/1")
+    spans = _spans_by_name()
+    server = spans["GET /orders/{order_id}"]
+    manual = spans["orders.get"]
+    assert server.kind.name == "SERVER"
+    assert manual.kind.name == "INTERNAL"
+    assert manual.parent.span_id == server.context.span_id
+    assert manual.context.trace_id == server.context.trace_id
 
-        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
 
-    # The export branch was taken: a BatchSpanProcessor is now active.
-    active = provider._active_span_processor._span_processors
-    assert any(isinstance(p, BatchSpanProcessor) for p in active)
-    provider.shutdown()
+@pytest.mark.parametrize("mode", ["none", "slow"])
+def test_missing_order_never_reaches_shipping_or_marks_server_error(mode):
+    store.set_fault(mode)
+    response = client.get("/orders/999")
+    assert response.status_code == 404
+    spans = _spans_by_name()
+    assert spans["db.query"].attributes["db.found"] is False
+    assert spans["GET /orders/{order_id}"].status.status_code.name != "ERROR"
+    assert "downstream.shipping" not in spans

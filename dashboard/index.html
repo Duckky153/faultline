@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Faultline: break a service on purpose, watch the trace find it</title>
-<meta name="description" content="Faultline is a small orders service instrumented with OpenTelemetry. Flip one switch and its database step fails; in Dynatrace the exact failing step surfaces on its own." />
+<meta name="description" content="Faultline is a sample-order service with OpenTelemetry traces and a runtime fault switch. Explore the local demo and saved traces from a past Dynatrace trial." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -108,7 +108,7 @@
   .code .em{color:#f0a06f;font-weight:500;}
 
   .shots{display:grid;grid-template-columns:1fr;gap:38px;}
-  .shot{border:1px solid var(--ink);background:var(--paper-2);}
+  .shot{margin:0;border:1px solid var(--ink);background:var(--paper-2);}
   .shot img{display:block;width:100%;height:auto;border-bottom:1px solid var(--rule);}
   .shot figcaption{padding:18px 24px 20px;}
   .shot .ci{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:9px;}
@@ -163,11 +163,11 @@
           <em>right at it.</em>
         </h1>
         <p class="dek">
-          Faultline is a small demo app I built. It uses OpenTelemetry (the standard way an
-          app reports what it's doing) to send its activity into Dynatrace, a monitoring
-          tool. Flip one switch and one step inside the app, a database call, starts failing.
-          In Dynatrace that exact broken step shows up on its own. <b>Nobody has to go
-          hunting for where it went wrong.</b>
+          Faultline is a small sample-order app. It uses OpenTelemetry to record what
+          happens inside a request. Flip a switch and the simulated database lookup
+          slows down or fails; the trace shows which step changed. It runs locally,
+          and can export traces to an OTLP backend. <b>The Dynatrace screenshots below
+          are saved evidence from a past trial, not a live dashboard.</b>
         </p>
       </div>
 
@@ -181,9 +181,9 @@
     </div>
 
     <div class="hero-strap">
-      <div class="strap-cell"><span class="n">3</span><span class="l micro">steps in each request</span></div>
-      <div class="strap-cell"><span class="n">3</span><span class="l micro">ways to break it · none / slow / error</span></div>
-      <div class="strap-cell"><span class="n">18</span><span class="l micro">tests passing</span></div>
+      <div class="strap-cell"><span class="n">3</span><span class="l micro">manual stages in a found-order lookup</span></div>
+      <div class="strap-cell"><span class="n">3</span><span class="l micro">modes · none / slow / error</span></div>
+      <div class="strap-cell"><span class="n">24</span><span class="l micro">automated checks</span></div>
       <div class="strap-cell"><span class="n">0</span><span class="l micro">code changes to send it to Dynatrace</span></div>
     </div>
   </div>
@@ -217,9 +217,11 @@
       <div><span class="sec-no">§ 02</span><h2 class="sec-title">The app, and<br>the break button</h2></div>
       <div>
         <p class="sec-lede">
-          Every request becomes a <b>trace</b>: a timeline of what happened. Each step in it
-          is a <b>span</b>, one timed piece of work. Here a request has three: handling the
-          request, the database lookup inside it, and one follow-on call.
+          Each HTTP request has an automatic <b>SERVER span</b>, which records its
+          duration and response status. A successful order lookup adds the three
+          manual spans below. The database and simulated shipping spans sit beneath
+          <code>orders.get</code>; all share the same trace. OpenTelemetry also adds
+          spans for sending the HTTP response.
         </p>
       </div>
     </div>
@@ -227,16 +229,16 @@
     <div class="sec-body">
       <div class="pipe" role="list" aria-label="request anatomy">
         <div class="pipe-step" role="listitem">
-          <div class="si">span 01 · server</div><div class="sn">orders.get</div>
-          <div class="sd">Handling the request itself. OpenTelemetry records this automatically.</div>
+          <div class="si">manual · internal</div><div class="sn">orders.get</div>
+          <div class="sd">The order-handling work, nested beneath the automatic GET /orders/{order_id} server span.</div>
         </div>
         <div class="pipe-step target" role="listitem">
-          <div class="si">span 02 · the break point</div><div class="sn">db.query</div>
-          <div class="sd">The database lookup. This is the step the break button breaks.</div>
+          <div class="si">manual · the break point</div><div class="sn">db.query</div>
+          <div class="sd">An in-memory lookup. The fault switch adds a delay or raises a database error here.</div>
         </div>
         <div class="pipe-step" role="listitem">
-          <div class="si">span 03 · downstream</div><div class="sn">downstream.shipping</div>
-          <div class="sd">A follow-on call, like a shipping service. Skipped if the lookup fails.</div>
+          <div class="si">manual · simulated</div><div class="sn">downstream.shipping</div>
+          <div class="sd">Adds a sample tracking number locally. No shipping service is contacted; skipped for failed or missing orders.</div>
         </div>
       </div>
 
@@ -258,11 +260,14 @@
       <div class="code" aria-label="flip the break button">
         <span class="lbl">flip the break button at runtime</span>
 <pre><span class="cm"># make the database step fail</span>
-curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"error"}'</span>
+curl -X POST localhost:8799/admin/fault \
+  -H <span class="str">'Content-Type: application/json'</span> -d <span class="str">'{"mode":"error"}'</span>
 curl localhost:8799/orders/1            <span class="cm"># -> HTTP 500, recorded in the trace</span>
 
 <span class="cm"># put it back</span>
-curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</span></pre>
+curl -X POST localhost:8799/admin/fault \
+  -H <span class="str">'Content-Type: application/json'</span> -d <span class="str">'{"mode":"none"}'</span>
+curl localhost:8799/orders/1            <span class="cm"># -> HTTP 200 again</span></pre>
       </div>
     </div>
   </div>
@@ -311,8 +316,8 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
         <p class="sec-lede">
           These screenshots are from a past Dynatrace trial session (that trial has since
           expired). The app showed up on its own, with both healthy and failing requests.
-          Opening a failing one, the database step is marked as the cause, without anyone
-          telling Dynatrace where to look.
+          Opening a failing request shows the error reported by the app's database
+          span. These images document that session, not current backend availability.
         </p>
       </div>
     </div>
@@ -324,13 +329,15 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
           <figcaption>
             <span class="ci">01 · the service, in Dynatrace</span>
             <p class="ct">The <b>orders-demo</b> app in Dynatrace. Each row is a real request; the red ones are the failures created by flipping the break button to <b>error</b>.</p>
+            <p class="ct"><a href="01-orders-demo-service.png">Open the request screenshot at full size</a></p>
           </figcaption>
         </figure>
         <figure class="shot">
           <img src="02-failing-request-trace.png" alt="A single failing request trace in Dynatrace, with the db.query step marked as the error." loading="lazy" />
           <figcaption>
             <span class="ci">02 · one failing request, opened up</span>
-            <p class="ct">The same request, opened up. The <b>db.query</b> step (the database lookup) carries the error, and the request never reaches shipping. That's the exact failing step, found automatically, not guessed.</p>
+            <p class="ct">The failure trace has an automatic HTTP server span above the manual <b>orders.get</b> and <b>db.query</b> spans. The database span records the error; the simulated shipping step was not reached.</p>
+            <p class="ct"><a href="02-failing-request-trace.png">Open the failure trace screenshot at full size</a></p>
           </figcaption>
         </figure>
       </div>
@@ -356,7 +363,7 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
       <div class="claims">
         <div class="claim is-true">
           <h4>it's the make-it-then-watch-it loop</h4>
-          <p>Set up an app to report what it's doing, send it some traffic, break a step, and find it in seconds instead of hours. That's the demo an SE walks a customer through.</p>
+          <p>Send sample requests, introduce a known fault, and inspect the response and trace together. This demonstrates a troubleshooting walkthrough, not a measured reduction in diagnosis time.</p>
         </div>
         <div class="claim is-caveat">
           <h4>it's three orders, in memory</h4>
@@ -389,7 +396,7 @@ curl -X POST localhost:8799/admin/fault -d <span class="str">'{"mode":"none"}'</
         <p class="foot-meta">
           orders.get → db.query → downstream.shipping<br>
           break modes: none · slow · error<br><br>
-          18 tests · sends data via standard OpenTelemetry settings<br>
+          24 tests · exports traces over OTLP/HTTP<br>
           service name in Dynatrace: orders-demo
         </p>
       </div>
