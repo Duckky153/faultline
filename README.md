@@ -32,7 +32,7 @@ server span as failed; it never reaches the simulated shipping step.
 3. **The store + fault switch** — `app/store.py`. Holds three in-memory orders and
    the fault mode (`none` / `slow` / `error`).
 4. **The tests** — `tests/`. 24 checks cover responses, trace parentage, errors,
-   missing orders, the actual portfolio curl commands, and real OTLP/HTTP export
+   missing orders, the actual page curl commands, and real OTLP/HTTP export
    to a temporary loopback collector.
 
 ## Run it locally
@@ -57,7 +57,7 @@ Do not expose it publicly or treat it as a production administration endpoint.
 The tests require `curl` and permission to bind temporary ports on `127.0.0.1`.
 They clear inherited `OTEL_*` settings before app import, and export tests set
 their own loopback destination. Tests do not load `.env`, use Dynatrace, or need
-an account. The portfolio's displayed commands are extracted from the HTML and
+an account. The page's displayed commands are extracted from the HTML and
 executed against the local service, including a recovery request.
 
 ## Send the traces to a backend
@@ -82,8 +82,6 @@ The images under `screenshots/` and `dashboard/` were captured during a past
 Dynatrace trial session (that trial has since expired). In them the `orders-demo`
 service appears on its own, and a failing request's trace marks the `db.query` step
 as an error reported by the app's instrumentation. They prove historical receipt,
-not a currently active Dynatrace connection. The local portfolio at
+not a currently active Dynatrace connection. The local page at
 `dashboard/index.html` links to the full-size images for inspection.
 
-See [the September 8 local audit](2026-09-08-trace-audit.md) for reproduced defects,
-regression results, screenshot paths, and the boundaries of this verification.
