@@ -1,4 +1,4 @@
-"""Run the portfolio's copyable commands, not a separately maintained example."""
+"""Run the page's copyable commands, not a separately maintained example."""
 from html.parser import HTMLParser
 from pathlib import Path
 import shlex
