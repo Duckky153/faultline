@@ -5,6 +5,13 @@ purpose, so the resulting failure surfaces on its own in a tracing backend. Flip
 one switch, a step inside the app starts failing, and the trace points straight
 at the step that broke.
 
+**[Project page](https://duckky153.github.io/faultline/)**
+
+![A failing GET /orders request in a Dynatrace trace view, with the db.query step marked as an error](screenshots/02-failing-request-trace.png)
+
+*Saved screenshot from a past Dynatrace trial (the trial has since expired): the
+failing request's trace, with the `db.query` step flagged as an error.*
+
 > **Naming:** the project is **Faultline**; the running service reports itself as
 > `orders-demo`, so that's the name it appears under in the tracing backend.
 
@@ -36,6 +43,8 @@ server span as failed; it never reaches the simulated shipping step.
    to a temporary loopback collector.
 
 ## Run it locally
+Needs Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). Without uv,
+`python -m venv .venv && .venv/bin/pip install -e ".[dev]"` does the same install.
 ```bash
 uv venv --python 3.12
 VIRTUAL_ENV="$PWD/.venv" uv pip install -e ".[dev]"
@@ -50,6 +59,9 @@ curl localhost:8799/orders/1                      # now it's broken (HTTP 500)
 curl -X POST localhost:8799/admin/fault -H 'content-type: application/json' -d '{"mode":"none"}'  # fix it
 ```
 Fault modes: `slow` (the database step drags), `error` (it fails), `none` (healthy).
+To generate a mix of healthy, slow and failing requests in one go, run
+`.venv/bin/python send_traffic.py`; with no backend configured it prints the
+resulting spans to the console.
 The default slow delay is two seconds; tests use a shorter delay. The switch is
 process-local and unauthenticated, intended only for this local demonstration.
 Do not expose it publicly or treat it as a production administration endpoint.
